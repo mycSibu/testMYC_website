@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 卫理青少年中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // *** 添加 Tailwind 自定义颜色配置 ***
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'myc-deep': '#5B217D', // 新深紫/梅子紫
+                        'myc-green': '#68b92b', // 活力绿
+                        'myc-yellow': '#FFC107', // 亮黄
+                        'myc-light-purple': '#936CA3', // 新浅紫/薰衣草
+                        'myc-offwhite': '#F9F7F3', // 米灰色/暖米白
+                        'myc-dark-footer': '#3A1054', // 极深紫
+                    }
+                }
+            }
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import {
+        getAuth,
+        onAuthStateChanged,
+        GoogleAuthProvider,
+        signInWithPopup,
+        setPersistence,
+        browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+        import {
+        getFirestore,
+        setLogLevel,
+        doc,
+        getDoc,
+        setDoc,
+        updateDoc,
+        serverTimestamp,
+        } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+        
+        // 设置 Firebase 日志级别为 Debug，便于调试
+        setLogLevel('Debug');
+
+        // --- 全局变量和初始化 ---
+         const firebaseConfig = {
+            apiKey: "AIzaSyDLY-Nd3exPFG2ExPil-ko_dFn9Zz3E-oE",
+            authDomain: "myc-booking.firebaseapp.com",
+            databaseURL: "https://myc-booking-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "myc-booking",
+            storageBucket: "myc-booking.firebasestorage.app",
+            messagingSenderId: "398699322309",
+            appId: "1:398699322309:web:2a176336e76eda30c009ac",
+            measurementId: "G-MET5E50WKS",
+        };
+
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // *** 最终修复：使用最简文件名路径 ***
+        const mainAppUrl = 'myc_homepage.html'; 
+
+        // 检查配置是否有效
+        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+            console.error("Firebase配置缺失或无效。");
+            document.getElementById('login-status').textContent = '错误：Firebase配置缺失。无法进行身份验证。';
+            document.getElementById('google-login-button').disabled = true;
+            document.getElementById('google-login-button').classList.add('opacity-50', 'cursor-not-allowed');
+            // 避免继续执行初始化
+        } else {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // --- 认证流程 ---
+
+            // 1. 使用 Canvas 提供的自定义令牌登录或匿名登录
+            // 不再自动匿名登录，改成：只检查当前是否已有登录状态
+            async function initAuth() {
+                try {
+                    onAuthStateChanged(auth, (user) => {
+                        isAuthReady = true;
+
+                        if (user && !user.isAnonymous) {
+                            // ✅ 已登录的正常用户（例如 Google）
+                            userId = user.uid;
+
+                            const displayName =
+                                user.displayName ||
+                                (user.email ? user.email.split('@')[0] : '用户');
+
+                            authStatusEl.textContent = `已登录：${displayName}（UID: ${userId}），可以进行预订。`;
+
+                            // 只有在已登录时才开始监听 Firestore、渲染表格
+                            setupListeners();
+                        } else {
+                            // ❌ 未登录或匿名账号，一律视为不能预订
+                            userId = null;
+
+                            authStatusEl.innerHTML =
+                                '您尚未登录，无法进行场地预订。' +
+                                '请先使用 Google 帐号登录：' +
+                                ' <a href="login.html" class="text-indigo-600 underline ml-1">前往登录页</a>';
+
+                            // 禁用预订按钮，避免直接点
+                            if (bookButtonEl) {
+                                bookButtonEl.disabled = true;
+                            }
+                        }
+                    });
+                } catch (error) {
+                    authStatusEl.textContent = '身份验证失败: ' + error.message;
+                    console.error("Authentication Error:", error);
+                    isAuthReady = true;
+                }
+            }
+
+
+            // 2. 监听认证状态变化
+            onAuthStateChanged(auth, (user) => {
+                const statusElement = document.getElementById('login-status');
+                const loginCard = document.getElementById('login-card');
+                
+                if (user) {
+                    // 用户已登录
+                    const displayName = user.displayName || user.email || '用户';
+                    const isGoogleUser = user.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
+                    
+                    statusElement.innerHTML = `
+                        <p class="text-myc-green font-bold">已登录成功！</p>
+                        <p class="text-sm mt-1">欢迎您, ${displayName}!</p>
+                        <p class="text-xs text-gray-400 mt-2">（${isGoogleUser ? 'Google 账户' : '访客账户'}）</p>
+                        <button id="redirect-button" class="mt-4 bg-myc-green text-white px-4 py-2 rounded-lg hover:bg-myc-green/80 transition duration-300">
+                            返回主页
+                        </button>
+                    `;
+                    
+                    // 隐藏登录按钮，显示加载/状态
+                    const loginButton = document.getElementById('google-login-button');
+                    if (loginButton) loginButton.classList.add('hidden');
+                    
+                    // 3. 登录后 1.5 秒自动跳转到主页
+                    setTimeout(() => {
+                        // 使用最简文件名尝试跳转
+                        window.location.href = mainAppUrl;
+                    }, 1500);
+
+                    // 允许手动跳转
+                    document.getElementById('redirect-button').addEventListener('click', () => {
+                        window.location.href = mainAppUrl;
+                    });
+                    
+                } else {
+                    // 用户未登录
+                    statusElement.textContent = '请使用您的 Google 账户登录。';
+                    const loginButton = document.getElementById('google-login-button');
+                    if (loginButton) {
+                        loginButton.classList.remove('hidden', 'opacity-50', 'cursor-not-allowed');
+                        loginButton.disabled = false;
+                    }
+                }
+                
+                // 移除加载状态
+                loginCard.classList.remove('animate-pulse');
+            });
+            
+            // 3. Google 登录处理函数
+            window.handleGoogleSignIn = async () => {
+                const provider = new GoogleAuthProvider();
+                const statusElement = document.getElementById('login-status');
+                const loginButton = document.getElementById('google-login-button');
+
+                try {
+                    statusElement.textContent = '正在连接 Google... 请稍候...';
+                    loginButton.disabled = true;
+
+                    // 使用弹出窗口进行登录
+                    const result = await signInWithPopup(auth, provider);
+                    // 登录成功后 onAuthStateChanged 会处理后续跳转
+                    console.log("Google 登录成功:", result.user.uid);
+                    
+                } catch (error) {
+                    // 错误处理
+                    console.error("Google 登录失败:", error.code, error.message);
+
+                    let errorMessage = '登录失败，请重试。';
+                    if (error.code === 'auth/popup-closed-by-user') {
+                        errorMessage = '您关闭了登录窗口。';
+                    } else if (error.code === 'auth/cancelled-popup-request') {
+                         errorMessage = '已有一个登录请求正在进行中，请勿重复点击。';
+                    } else {
+                        errorMessage = `登录错误: ${error.message}`;
+                    }
+
+                    // 使用自定义弹窗显示错误信息
+                    showCustomAlert(errorMessage);
+                    
+                    // 重置状态
+                    statusElement.textContent = '请使用您的 Google 账户登录。';
+                    loginButton.disabled = false;
+                }
+            };
+            
+            // 自定义提示框逻辑 (代替 alert())
+            function showCustomAlert(message) {
+                const alertBox = document.getElementById('custom-alert');
+                const alertMessage = document.getElementById('alert-message');
+                alertMessage.textContent = message;
+                alertBox.classList.remove('hidden');
+                setTimeout(() => {
+                    alertBox.classList.add('hidden');
+                }, 4000); // 4秒后自动隐藏
+            }
+
+            // 确保 DOM 加载完毕后执行初始化
+            document.addEventListener('DOMContentLoaded', initializeAuth);
+        }
+    </script>
+    <style>
+        /* 更换字体为 Nunito */
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap');
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #F9F7F3; /* 米灰色背景 */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-myc-offwhite">
+
+    <!-- 登录卡片 -->
+    <div id="login-card" class="w-full max-w-md p-8 bg-white rounded-xl shadow-2xl text-center transform hover:shadow-3xl transition duration-500 animate-pulse">
+        <img src="uploaded:clear myc logo.png" 
+             alt="卫理青少年中心 Logo" 
+             class="h-16 w-auto mx-auto mb-6 rounded-full p-1"
+             onerror="this.onerror=null; this.src='https://placehold.co/64x64/5B217D/ffffff?text=MYC';"
+        >
+        <h1 class="text-3xl font-extrabold text-myc-deep mb-2">
+            用户登录
+        </h1>
+        <p class="text-gray-500 mb-8">
+            使用您的 Google 账户安全快捷地登录。
+        </p>
+
+        <!-- 登录状态信息 -->
+        <div id="login-status" class="mb-6 text-sm text-gray-600 min-h-[40px] flex flex-col justify-center items-center">
+            正在验证身份...
+        </div>
+
+        <!-- Google 登录按钮 -->
+        <button 
+            id="google-login-button" 
+            onclick="handleGoogleSignIn()" 
+            class="hidden w-full flex items-center justify-center bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-gray-100 transition duration-300 hover:scale-[1.01] transform"
+        >
+            <svg class="w-6 h-6 mr-3" viewBox="0 0 48 48">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.679-6.08 7.649-11.303 7.649-6.666 0-12.112-5.385-12.112-12s5.446-12 12.112-12c3.085 0 5.858 1.194 8.006 3.966l4.348-4.348C39.022 6.784 34.78 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20c11.045 0 19.833-8.823 19.833-20.083z"/><path fill="#FF3D00" d="M6.309 18.048c0-3.483 1.344-6.848 3.784-9.378l4.348 4.348c-1.785 1.574-2.735 3.868-2.735 6.463 0 2.658.98 5.064 2.766 6.649l-4.225 3.755c-2.458-2.316-3.963-5.772-3.963-9.585z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.97 13.409-5.192l-4.348-4.348c-2.148 1.685-4.921 2.645-8.061 2.645-5.223 0-9.654-2.97-11.303-7.649l-4.348 4.348C9.288 38.307 16.035 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083c-.767-.504-1.639-.938-2.607-1.378l4.348-4.348c-.689-.937-1.423-1.764-2.228-2.529h-.001C39.673 8.356 36.9 6.784 34.006 6.784c-3.085 0-5.858 1.194-8.006 3.966l4.348 4.348c1.649-4.679 6.08-7.649 11.303-7.649 3.085 0 5.858 1.194 8.006 3.966l4.348 4.348C43.611 20.083 43.611 20.083 43.611 20.083z"/>
+            </svg>
+            使用 Google 账户登录
+        </button>
+
+        <!-- 返回主页链接 -->
+        <div class="mt-8 text-sm">
+            <!-- 使用最简文件名尝试链接跳转 -->
+            <a href="myc_homepage.html" class="text-myc-deep hover:text-myc-green transition duration-300">
+                &larr; 返回主页
+            </a>
+        </div>
+    </div>
+
+    <!-- 自定义提示框 (Alert Modal) -->
+    <div id="custom-alert" class="hidden fixed bottom-5 left-1/2 transform -translate-x-1/2 p-4 bg-red-600 text-white rounded-lg shadow-lg z-50 transition duration-300">
+        <p id="alert-message" class="font-semibold"></p>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卫理青少年中心 (MYC) - 官方主页</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 定义定制 Tailwind 颜色 (确保与 login.html 一致)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'myc-deep': '#5B217D', // 新深紫/梅子紫
+                        'myc-green': '#68b92b', // 活力绿 (Primary Accent)
+                        'myc-yellow': '#FFC107', // 亮黄 (Header CTA Accent)
+                        'myc-light-purple': '#936CA3', // 新浅紫/薰衣草
+                        'myc-offwhite': '#F9F7F3', // 米灰色/暖米白 (Clean Background)
+                        'myc-dark-footer': '#3A1054', // 极深紫，用于页脚
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- *** START FIREBASE AUTH INTEGRATION *** -->
+   <script type="module">
+            // 1. 引入 Firebase SDK（全部用 12.6.0）
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+            import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+            import {
+                getAuth,
+                signInAnonymously,
+                // signInWithCustomToken, // 暂时没用就先注解掉
+                onAuthStateChanged,
+                signOut,
+                GoogleAuthProvider,
+            } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+            import {
+                getFirestore,
+                setLogLevel,
+            } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+            // 2. 你的 Firebase 配置
+            const firebaseConfig = {
+                apiKey: "AIzaSyDLY-Nd3exPFG2ExPil-ko_dFn9Zz3E-oE",
+                authDomain: "myc-booking.firebaseapp.com",
+                databaseURL: "https://myc-booking-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "myc-booking",
+                storageBucket: "myc-booking.firebasestorage.app",
+                messagingSenderId: "398699322309",
+                appId: "1:398699322309:web:2a176336e76eda30c009ac",
+                measurementId: "G-MET5E50WKS"
+            };
+
+            // 3. 初始化 Firebase（只要做一次）
+            const app = initializeApp(firebaseConfig);
+            const analytics = getAnalytics(app);       // 可有可无，不影响 Auth
+            const auth = getAuth(app);
+            const db   = getFirestore(app);
+
+            // Firestore log 等级（小写 'debug'）
+            setLogLevel('debug');
+
+            // 如果你不用 custom token，这里就直接设 null
+            const initialAuthToken = null;
+
+            // 4. 初始身份验证：现在用匿名登录，之后可以换成 Google 登录
+            async function initializeAuth() {
+                try {
+                if (initialAuthToken) {
+                    // 如果以后你有后端产生 custom token，就用这个
+                    // await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    // 目前：自动匿名登录（只是让 Firestore rules 看到有人）
+                    await signInAnonymously(auth);
+                }
+                } catch (error) {
+                console.error("初始身份验证失败:", error);
+                }
+            }
+
+            // 5. 登出函数（给按钮 onclick="handleSignOut()" 用）
+            window.handleSignOut = async () => {
+                try {
+                await signOut(auth);
+                console.log("用户已登出。");
+                window.location.reload();
+                } catch (error) {
+                console.error("登出失败:", error);
+                }
+            };
+
+            // 6. 监听认证状态变化并更新 UI
+            onAuthStateChanged(auth, (user) => {
+                const navContainer = document.getElementById('nav-auth-container');
+                if (!navContainer) return;
+
+                if (user && user.uid) {
+                // 已登录（匿名也算登录，只是 isAnonymous = true）
+                let displayName = '用户';
+                if (user.providerData.some(p => p.providerId === GoogleAuthProvider.PROVIDER_ID)) {
+                    displayName = user.displayName || '会员用户';
+                } else if (user.isAnonymous) {
+                    displayName = '访客';
+                } else {
+                    displayName = user.email ? user.email.split('@')[0] : '用户';
+                }
+
+                navContainer.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                    <span class="text-myc-deep font-medium text-base sm:text-lg">欢迎, ${displayName}</span>
+                    <button onclick="handleSignOut()" class="text-white bg-myc-deep hover:bg-[#4a1c62] transition duration-300 px-4 py-2 rounded-full font-semibold shadow-lg">
+                        登出
+                    </button>
+                    </div>
+                `;
+                navContainer.classList.remove('opacity-0');
+
+                const mainTitle = document.getElementById('main-title');
+                const mainSubtitle = document.getElementById('main-subtitle');
+                const mainAction = document.getElementById('main-action');
+
+                if (mainTitle)    mainTitle.textContent    = 'MYC 专属会员中心，欢迎回来！';
+                if (mainSubtitle) mainSubtitle.textContent = '立即查看您的活动预定、最新通知与中心重要公告。';
+                if (mainAction)   mainAction.classList.add('hidden');
+
+                } else {
+                // 未登录（或登出后）
+                navContainer.innerHTML = `
+                    <a href="./login.html" class="bg-myc-deep text-white px-4 py-2 rounded-full font-semibold shadow-lg hover:bg-[#4a1c62] transition duration-300">
+                    用户登录
+                    </a>
+                `;
+                navContainer.classList.remove('opacity-0');
+
+                const mainTitle = document.getElementById('main-title');
+                const mainSubtitle = document.getElementById('main-subtitle');
+                const mainAction = document.getElementById('main-action');
+
+                if (mainTitle)    mainTitle.textContent    = '诗巫最棒的活动场地，等你来预定！';
+                if (mainSubtitle) mainSubtitle.textContent = '从篮球到 KTV，一站式满足你的所有活动需求。立即查看设施详情。';
+                if (mainAction)   mainAction.classList.remove('hidden');
+                }
+            });
+
+            // 7. DOM 准备好之后再做初始登录
+            document.addEventListener('DOMContentLoaded', initializeAuth);
+            </script>
+    <!-- *** END FIREBASE AUTH INTEGRATION *** -->
+
+    <style>
+        /* 更换字体为 Nunito：更圆润、更友好、更吸睛 */
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap');
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #F9F7F3; /* 保持米灰色背景 (干净柔和) */
+            color: #1f2937; /* Default dark text */
+        }
+        .text-shadow-custom {
+            /* 增强对比度 */
+            text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header & Navigation - 更改为 my-green 背景，更具活力，并添加了轻微透明和模糊效果 -->
+    <header class="bg-myc-green/95 backdrop-blur-sm shadow-lg sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <!-- Logo/Title -->
+            <a href="#" class="flex items-center space-x-2">
+                <img src="uploaded:clear myc logo.png" 
+                     alt="卫理青少年中心 Logo" 
+                     class="h-8 w-auto rounded-full p-0.5 shadow-md"
+                     onerror="this.onerror=null; this.src='https://placehold.co/32x32/5B217D/ffffff?text=MYC';"
+                >
+                <span class="text-xl font-bold text-myc-deep hover:text-white transition duration-300 hidden sm:inline">
+                    MY CENTRE SIBU
+                </span>
+            </a>
+            
+            <!-- Desktop Navigation -->
+            <nav class="hidden md:flex space-x-6 text-myc-deep font-medium">
+                <a href="#about" class="hover:text-white transition duration-300">关于我们</a>
+                <a href="#facilities" class="hover:text-white transition duration-300">设施介绍</a>
+                <a href="myc_booking.html" class="hover:text-white transition duration-300">场地预约</a>
+                <a href="#contact" class="hover:text-white transition duration-300">联系我们</a>
+            </nav>
+
+            <!-- Login/Auth CTA - ***动态认证容器*** -->
+            <div id="nav-auth-container" class="hidden md:inline-block opacity-0 transition-opacity duration-500">
+                <!-- JS will fill this content. Initial opacity-0 to prevent FOUC (Flash of Unstyled Content) -->
+                <span class="bg-myc-deep text-white px-4 py-2 rounded-full font-semibold shadow-lg">加载中...</span>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <button class="md:hidden text-myc-deep hover:text-white">
+                <!-- SVG Icon for Menu -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <!-- 1. Hero Section - 使用活力绿作为背景，文字使用白色以保证对比度 -->
+        <section id="hero" class="bg-myc-green pt-16 pb-24 sm:pt-24 sm:pb-32 relative overflow-hidden">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+                <!-- *** 更新默认（未登录）主标题 *** -->
+                <h2 id="main-title" class="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-4 leading-tight text-shadow-custom text-white">
+                    诗巫最棒的活动场地，等你来预定！
+                </h2>
+                <!-- *** 更新默认（未登录）副标题 *** -->
+                <p id="main-subtitle" class="text-lg sm:text-xl font-light mb-8 max-w-3xl mx-auto text-white/90">
+                    从篮球到 KTV，一站式满足你的所有活动需求。立即查看设施详情。
+                </p>
+                
+                <!-- Call to Action Button - 使用优化后的深紫色背景，与绿色形成强烈对比 -->
+                <a id="main-action" href="./login.html" class="inline-flex items-center justify-center bg-myc-deep text-white font-bold text-lg px-8 py-4 rounded-full shadow-2xl hover:bg-[#4a1c62] transition duration-300 transform hover:scale-105">
+                    预定场地，开启活动！
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-2 lucide lucide-arrow-right"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </a>
+            </div>
+            <!-- Decorative background shape - 颜色改为白色透明度，以适应绿色背景 -->
+            <svg class="absolute bottom-0 left-0 w-full h-auto text-white/30" viewBox="0 0 1440 320" preserveAspectRatio="none">
+                <path fill="currentColor" fill-opacity="1" d="M0,64L48,85.3C96,107,192,149,288,149.3C384,149,480,107,576,90.7C672,75,768,85,864,122.7C960,160,1056,224,1152,224C1248,224,1344,160,1392,128L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+            </svg>
+        </section>
+        
+        <!-- 2. About Us / Mission Section - 强调色保持活力绿 -->
+        <section id="about" class="py-16 sm:py-24 bg-white">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+                    <div class="lg:col-span-6 space-y-4">
+                        <h3 class="text-sm font-extrabold text-myc-green uppercase tracking-wider">我们的使命</h3>
+                        <h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+                            培育未来领袖，共建美好社区
+                        </h2>
+                        <p class="mt-4 text-gray-600 text-lg">
+                            卫理青少年中心不仅仅是一个场地租赁服务，更是砂拉越诗巫地区青少年成长的摇篮。我们致力于通过提供安全、健康的活动环境和品格发展项目，帮助青年实现其全部潜力。
+                        </p>
+                        <ul class="space-y-3 pt-4 text-gray-700">
+                            <li class="flex items-start">
+                                <!-- SVG Icon for Community --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 mt-1 flex-shrink-0 text-myc-green lucide lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                <span>推动社区参与及交流活动。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <!-- SVG Icon for Growth --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 mt-1 flex-shrink-0 text-myc-green lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                                <span>专注于青少年的品格与技能发展。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <!-- SVG Icon for Quality --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 mt-1 flex-shrink-0 text-myc-green lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                                <span>提供高品质、安全的活动空间。</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Placeholder Image/Visual -->
+                    <div class="mt-10 lg:mt-0 lg:col-span-6">
+                        <div class="rounded-xl overflow-hidden shadow-2xl">
+                             <!-- 使用 myc bgd.jpg 作为背景宣传图 -->
+                             <img src="uploaded:myc bgd.jpg" 
+                                 alt="卫理青少年中心各类户外和室内活动照片拼贴" 
+                                 class="w-full h-full object-cover"
+                                 onerror="this.onerror=null; this.src='https://placehold.co/600x400/68b92b/ffffff?text=MYC+Activities';"
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Facilities Showcase - 使用米灰色背景 (干净柔和) -->
+        <section id="facilities" class="py-16 sm:py-24 bg-myc-offwhite"> 
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <!-- 更改子标题 --><h3 class="text-sm font-extrabold text-myc-green uppercase tracking-wider">场地设施</h3>
+                <!-- 更改主标题 --><h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl mt-2 mb-12">
+                    休闲活动
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    
+                    <!-- Facility Card 1: 多用途礼堂 -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 border border-myc-green/30">
+                        <!-- ICON: 篮球图标 - 使用新的深紫色 --><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#5B217D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 lucide lucide-basketball"><circle cx="12" cy="12" r="10"/><path d="m11.166 14.834 1.668-1.668c.372-.372.372-.98 0-1.352l-2.228-2.228c-.372-.372-.98-.372-1.352 0l-1.668 1.668"/><path d="m14.834 11.166-1.668 1.668c-.372.372-.372.98 0 1.352l2.228 2.228c.372.372.98.372 1.352 0l1.668-1.668"/></svg>
+                        <h4 class="text-xl font-semibold text-gray-900 mb-2">多用途礼堂</h4>
+                        <p class="text-gray-600 text-sm">
+                            高度灵活的室内体育空间，可分隔成篮球、羽毛球、乒乓球、巧固球等多种场地。支持预定半场或全场。
+                        </p>
+                    </div>
+
+                    <!-- Facility Card 2: 休闲娱乐设施 -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 border border-myc-green/30">
+                        <!-- ICON: 骰子图标 - 使用新的深紫色 --><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#5B217D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 lucide lucide-dices"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M16 8h.01"/><path d="M16 16h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M12 12h.01"/></svg>
+                        <h4 class="text-xl font-semibold text-gray-900 mb-2">休闲娱乐设施</h4>
+                        <p class="text-gray-600 text-sm">
+                            包含多功能健身房、舞蹈室、KTV 房、游戏房（Nintendo Switch, 虚拟高尔夫）和撞球室，满足您的休闲娱乐需求。
+                        </p>
+                    </div>
+
+                    <!-- Facility Card 3: 免费休闲项目 -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 border border-myc-green/30">
+                        <!-- ICON: 靶心图标 - 使用新的深紫色 --><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#5B217D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 lucide lucide-target"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        <h4 class="text-xl font-semibold text-gray-900 mb-2">免费休闲项目</h4>
+                        <p class="text-gray-600 text-sm">
+                            提供飞镖、桌面足球等休闲项目，可免费使用。为确保设施完好，需支付可全额退还的定金。
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mt-12">
+                    <a href="#booking" class="inline-block border border-myc-green text-myc-green px-6 py-3 rounded-full font-semibold hover:bg-myc-green hover:text-white transition duration-300">
+                        查看更多及预定详情
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Contact and Location - 使用新的深紫色背景，并精简布局 -->
+        <section id="contact" class="py-16 sm:py-24 bg-myc-deep text-white">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h3 class="text-sm font-extrabold text-myc-green uppercase tracking-wider">保持联系</h3>
+                    <h2 class="text-3xl font-extrabold sm:text-4xl mt-2 text-white">
+                        快速联络与关注我们
+                    </h2>
+                </div>
+                
+                <!-- NEW: 紧凑的联系方式三栏布局 (Email, Phone, Address) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    
+                    <!-- Contact Item 1: Email (紧凑卡片) -->
+                    <a href="mailto:mycentre@live.com.my" target="_blank" class="flex flex-col items-center justify-center p-6 bg-white/10 rounded-xl hover:bg-white/20 transition duration-300 shadow-xl group text-center">
+                        <!-- SVG Icon for Mail --><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#68b92b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 lucide lucide-mail group-hover:scale-105 transition-transform mb-2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                        <p class="font-bold text-lg text-white">电子邮件</p>
+                        <p class="text-myc-green break-words mt-1 text-sm group-hover:underline">mycentre@live.com.my</p>
+                    </a>
+                    
+                    <!-- Contact Item 2: Phone/WhatsApp (紧凑卡片) -->
+                    <div class="flex flex-col items-center justify-center p-6 bg-white/10 rounded-xl shadow-xl text-center">
+                        <!-- SVG Icon for Phone --><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#68b92b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 lucide lucide-phone mb-2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-3.66-3.66 19.5 19.5 0 0 1-3.07-8.63A2 2 0 0 1 3.08 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <p class="font-bold text-lg text-white">热线电话/WhatsApp</p>
+                        <div class="mt-1 space-y-0.5 text-sm">
+                            <p class="text-white/80">电话: 084-311313</p>
+                            <a href="https://wa.me/60168981379" target="_blank" rel="noopener noreferrer" class="text-myc-green font-semibold hover:text-myc-yellow transition duration-300 hover:underline">WhatsApp: 0168981379</a>
+                        </div>
+                    </div>
+
+                    <!-- Contact Item 3: Address (紧凑卡片) -->
+                    <a href="https://www.google.com/maps/search/?api=1&query=NO:1, JALAN HARMONI, LORONG HARMONI 4., Sibu, Malaysia" target="_blank" rel="noopener noreferrer" class="flex flex-col items-center justify-center p-6 bg-white/10 rounded-xl hover:bg-white/20 transition duration-300 shadow-xl group text-center">
+                        <!-- SVG Icon for Location --><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#68b92b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 lucide lucide-map-pin group-hover:scale-105 transition-transform mb-2"><path d="M12 21.7C17.3 17 20 13 20 10A8 8 0 1 0 4 10C4 13 6.7 17 12 21.7Z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <p class="font-bold text-lg text-white">地址</p>
+                        <p class="text-white/80 mt-1 text-sm group-hover:underline">NO:1, JALAN HARMONI, LORONG HARMONI 4., Sibu, Malaysia</p>
+                    </a>
+                </div>
+
+                <!-- Social Media Links (保持居中独立模块) -->
+                <div class="flex flex-col items-center justify-center p-8 lg:p-10 bg-white/10 rounded-xl shadow-xl mt-12">
+                    <h4 class="text-2xl font-extrabold text-white mb-6 border-b-2 border-myc-green pb-2">关注我们</h4>
+                    <p class="text-white/80 mb-10 text-center max-w-sm">
+                        通过我们的社交媒体平台，了解最新的活动、课程和中心动态。
+                    </p>
+                    
+                    <!-- Social Media Icons -->
+                    <div class="flex justify-center space-x-8 sm:space-x-12">
+                        <!-- Facebook -->
+                        <a href="https://www.facebook.com/mycentresibu/" target="_blank" rel="noopener noreferrer" class="text-myc-green hover:text-myc-yellow transition duration-300 transform hover:scale-110" title="Facebook">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-facebook"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                        </a>
+                        <!-- Instagram  -->
+                        <a href="https://www.instagram.com/mycentre_sibu/" target="_blank" rel="noopener noreferrer" class="text-myc-green hover:text-myc-yellow transition duration-300 transform hover:scale-110" title="Instagram">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-instagram"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                        </a>
+                        <!-- Linktree  -->
+                        <a href="https://linktr.ee/MYCENTRE_Sibu?utm_source=linktree_profile_share&ltsid=b78dd187-72d4-4c69-99c0-9fb70580085d" target="_blank" rel="noopener noreferrer" class="text-myc-green hover:text-myc-yellow transition duration-300 transform hover:scale-110" title="Linktree">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-myc-dark-footer text-white py-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <!-- 版权信息已更新并精简 -->
+            <p class="text-sm">&copy; 2025 Copyright by My Centre, SCAC</p>
+            <!-- 移除隐私政策和使用条款的链接 -->
+        </div>
+    </footer>
+
+</body>
+</html>
