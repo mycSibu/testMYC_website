@@ -107,14 +107,16 @@
                     displayName = user.email ? user.email.split('@')[0] : '用户';
                 }
 
+                // 修改这一段 innerHTML
                 navContainer.innerHTML = `
-                    <div class="flex items-center space-x-4">
-                    <span class="text-myc-deep font-medium text-base sm:text-lg">欢迎, ${displayName}</span>
-                    <button onclick="handleSignOut()" class="text-white bg-myc-deep hover:bg-[#4a1c62] transition duration-300 px-4 py-2 rounded-full font-semibold shadow-lg">
+                    <div class="flex items-center space-x-2 sm:space-x-4">
+                    <span class="text-myc-deep font-medium text-xs sm:text-base">欢迎, ${displayName}</span>
+                    <button onclick="handleSignOut()" class="text-white bg-myc-deep hover:bg-[#4a1c62] transition duration-300 px-2 py-1 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-lg">
                         登出
                     </button>
                     </div>
                 `;
+                
                 navContainer.classList.remove('opacity-0');
 
                 const mainTitle = document.getElementById('main-title');
@@ -161,12 +163,31 @@
             /* 增强对比度 */
             text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
         }
+    
+    /* 在你现有的 style 标签里加上这些 */
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden; /* 禁止横向滚动，确保页面垂直显示 */
+        }
+        
+        * {
+            box-sizing: border-box; /* 确保 padding 不会撑大盒子 */
+        }
+    
+        img {
+            max-width: 100%; /* 防止未来放图片时图片太大 */
+            height: auto;
+        }
     </style>
+    
 </head>
 <body class="antialiased">
 
     <!-- Header & Navigation - 更改为 my-green 背景，更具活力，并添加了轻微透明和模糊效果 -->
     <header class="bg-myc-green/95 backdrop-blur-sm shadow-lg sticky top-0 z-50">
+        <span class="text-lg sm:text-xl font-bold text-myc-deep hover:text-white transition duration-300 hidden min-[400px]:inline">
+    MY CENTRE SIBU
+        </span>
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
             <!-- Logo/Title -->
             <a href="#" class="flex items-center space-x-2">
@@ -350,7 +371,7 @@
                     <a href="https://www.google.com/maps/search/?api=1&query=NO:1, JALAN HARMONI, LORONG HARMONI 4., Sibu, Malaysia" target="_blank" rel="noopener noreferrer" class="flex flex-col items-center justify-center p-6 bg-white/10 rounded-xl hover:bg-white/20 transition duration-300 shadow-xl group text-center">
                         <!-- SVG Icon for Location --><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#68b92b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 lucide lucide-map-pin group-hover:scale-105 transition-transform mb-2"><path d="M12 21.7C17.3 17 20 13 20 10A8 8 0 1 0 4 10C4 13 6.7 17 12 21.7Z"/><circle cx="12" cy="10" r="3"/></svg>
                         <p class="font-bold text-lg text-white">地址</p>
-                        <p class="text-white/80 mt-1 text-sm group-hover:underline">NO:1, JALAN HARMONI, LORONG HARMONI 4., Sibu, Malaysia</p>
+                        <p class="text-white/80 mt-1 text-sm group-hover:underline break-words px-2">NO:1, JALAN HARMONI, LORONG HARMONI 4., Sibu, Malaysia</p>
                     </a>
                 </div>
 
@@ -393,3 +414,4 @@
 
 </body>
 </html>
+
